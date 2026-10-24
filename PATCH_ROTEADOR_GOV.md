@@ -1,104 +1,30 @@
-# PATCH — api/v1/[...route].js (Reversa Gov)
+# Integração da rota Gov no Reversa
 
-Este é o **único arquivo existente** que requer alteração (adição mínima).
-Todas as demais mudanças são arquivos **novos**.
-
-## 1. Adicionar import (após a linha 15, antes de `function deny`)
+A autenticação, o middleware e as permissões continuam sendo os da aplicação hospedeira. A única alteração no roteador existente `api/v1/[...route].js` é adicionar, dentro de `switch (resource)`, antes de `default:`:
 
 ```js
-const gov = require('../../lib/domain/gov');
+    case 'gov':
+      return require('../../lib/domain/gov-routes')({ ctx, m, query, body, parts: segments(req), deny }, res);
 ```
 
-## 2. Adicionar case `gov` no switch (antes do `default:`)
+A linha corresponde exatamente à integração usada pelos testes deste repositório. O contexto `ctx` já deve ter sido obtido por `context(req)` no roteador; `deny`, `segments`, `query` e `body` também são os existentes. O wrapper do roteador permanece responsável pelo tratamento de `HttpError`.
 
-Inserir este bloco imediatamente antes de `default:` (linha 250):
+Copiar todos os arquivos `lib/domain/gov*.js`, incluindo `gov-routes.js` e `gov-validation.js`. O módulo usa os utilitários reais `lib/db.js`, `lib/http.js`, `lib/audit.js` e `lib/authz.js`; não criar substitutos desses arquivos.
 
-```js
-    case 'gov': {
-      // /gov/municipios · /gov/municipios/:id · /gov/fontes · /gov/ingestoes
-      // /gov/candidatos · /gov/candidatos/:id · /gov/candidatos/:id/revisao
-      // /gov/casos · /gov/casos/:id · /gov/casos/:id/relatorio · /gov/dashboard
-      const [, sub, sid, sact] = segments(req);
+Copiar `gov.html`, `gov.css` e o **frontend** `gov.js` para a raiz. O **backend** é `lib/domain/gov.js`: os dois arquivos têm o mesmo nome e não devem ser confundidos ao copiar.
 
-      if (sub === 'dashboard' && m === 'GET') {
-        return json(res, 200, { municipios: 0, candidatos: 0, emRevisao: 0, validados: 0, mensagem: 'Dashboard Gov — implementar em Fase 2' });
-      }
+Adicionar `014_gov.sql` e `015_gov_tenant_integrity.sql` ao diretório de migrations, sem alterar migrations já aplicadas. Antes de aplicar 015 em qualquer banco com dados, verificar vínculos entre organizações e valores monetários incompatíveis; a migration rejeita inconsistências em vez de apagar dados.
 
-      if (sub === 'municipios' && !sid) {
-        if (m === 'GET') return json(res, 200, await gov.listarMunicipios(ctx, query));
-        if (m === 'POST') {
-          deny(ctx, 'write', 'gov.municipio.create');
-          return json(res, 201, await gov.criarMunicipio(ctx, body));
-        }
-        return method(res, ['GET', 'POST']);
-      }
+Os endpoints implementados estão listados no README. As rotas futuras não retornam sucesso fictício. A rota de revisão registra a decisão e preserva o estado do candidato até a implementação dos gates documentais/jurídicos completos.
 
-      if (sub === 'municipios' && sid && !sact) {
-        if (m === 'GET') return json(res, 200, { id: sid, mensagem: 'Detalhe do município — implementar em Fase 2' });
-        if (m === 'PATCH') { deny(ctx, 'write', 'gov.municipio.update'); return json(res, 200, { ok: true }); }
-        return method(res, ['GET', 'PATCH']);
-      }
+## Verificação
 
-      if (sub === 'fontes' && !sid) {
-        if (m === 'GET') return json(res, 200, { fontes: [], mensagem: 'Fontes — implementar em Fase 2' });
-        if (m === 'POST') { deny(ctx, 'write', 'gov.fonte.create'); return json(res, 201, { ok: true }); }
-        return method(res, ['GET', 'POST']);
-      }
-
-      if (sub === 'ingestoes' && !sid && m === 'POST') {
-        deny(ctx, 'write', 'gov.ingestao.create');
-        return json(res, 201, { ok: true, mensagem: 'Ingestão — implementar em Fase 4' });
-      }
-
-      if (sub === 'ingestoes' && sid && !sact && m === 'GET') {
-        return json(res, 200, { id: sid, status: 'pendente', mensagem: 'Ingestão — implementar em Fase 4' });
-      }
-
-      if (sub === 'candidatos' && !sid && m === 'GET') {
-        return json(res, 200, await gov.listarCandidatos(ctx, query));
-      }
-
-      if (sub === 'candidatos' && sid && !sact && m === 'GET') {
-        return json(res, 200, await gov.obterCandidato(ctx, sid));
-      }
-
-      if (sub === 'candidatos' && sid && sact === 'revisao' && m === 'POST') {
-        deny(ctx, 'review', 'gov.candidato.review');
-        return json(res, 200, await govEvidence.registrarRevisao(ctx, sid, body));
-      }
-
-      if (sub === 'casos' && !sid) {
-        if (m === 'GET') return json(res, 200, { casos: [], mensagem: 'Casos — implementar em Fase 4' });
-        if (m === 'POST') { deny(ctx, 'write', 'gov.caso.create'); return json(res, 201, { ok: true }); }
-        return method(res, ['GET', 'POST']);
-      }
-
-      if (sub === 'casos' && sid && !sact && m === 'GET') {
-        return json(res, 200, { id: sid, mensagem: 'Caso — implementar em Fase 4' });
-      }
-
-      if (sub === 'casos' && sid && sact === 'relatorio' && m === 'GET') {
-        return json(res, 200, { id: sid, mensagem: 'Relatório — implementar em Fase 4' });
-      }
-
-      return json(res, 404, { error: { code: 'NOT_FOUND', message: 'Rota Gov não encontrada.' } });
-    }
-
-    default:
+```sh
+npm ci
+npm test
+npm run test:reversa
 ```
 
-## 3. Adicionar import do gov-evidence (após a linha 15)
+Esses comandos pertencem ao repositório do módulo. Depois de integrá-lo à aplicação, executar também a suíte completa da aplicação hospedeira. Os fixtures arquivados são apenas infraestrutura de testes e não devem ser copiados para o produto.
 
-```js
-const govEvidence = require('../../lib/domain/gov-evidence');
-```
-
-## Arquivos que NÃO devem ser alterados
-
-- `api/v1/rota.js` — apenas ponte, sem alteração
-- `lib/auth.js`, `lib/authz.js` — autenticação/autorização existentes, sem alteração
-- `lib/db.js` — acesso ao banco, sem alteração
-- `shell.js`, `shell.css` — UI compartilhado, sem alteração (salvo instrução expressa)
-- Qualquer página HTML existente (`dashboard.html`, `clientes.html`, etc.)
-- Qualquer migration existente (`001_` a `013_`)
-- Qualquer teste existente (`tests/*.test.js`)
+Não alterar `lib/auth.js`, `lib/authz.js`, `lib/db.js`, `middleware.js`, `shell.js`, `shell.css` ou páginas existentes como parte deste patch. Não executar migrations em produção ou deploy sem autorização expressa.

@@ -1,10 +1,10 @@
 // Reversa Gov — testes de unidade do domínio (isolado, aditivo).
 // Usa PGlite (banco em memória) com todas as migrations reais, incluindo 014_gov.sql.
 
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { createDb, freshRequire } from './helpers.js';
-import { classificarIrrf } from '../lib/domain/gov-irrf.js';
+const { describe, it, after, afterEach } = require('node:test');
+const assert = require('node:assert/strict');
+const { createDb, freshRequire, closeDatabases, cleanup } = require('./helpers.js');
+const { classificarIrrf } = require('../lib/domain/gov-irrf.js');
 
 async function setup() {
   const { db, sql } = await createDb();
@@ -160,3 +160,6 @@ describe('Reversa Gov — isolamento de dados', () => {
     assert.strictEqual(listagemB.municipios.length, 0);
   });
 });
+
+afterEach(closeDatabases);
+after(cleanup);

@@ -1,3 +1,5 @@
+> Documento histórico da implementação inicial. As contagens e afirmações de testes abaixo não descrevem a verificação atual. Consulte README.md para os comandos, a estrutura corrigida e os limites atuais.
+
 # RESUMO DA IMPLEMENTAÇÃO — Reversa Gov
 
 **Data:** 24/10/2026  

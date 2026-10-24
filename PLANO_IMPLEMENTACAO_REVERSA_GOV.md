@@ -1,3 +1,5 @@
+> Documento histórico da implementação inicial. As contagens e afirmações de testes abaixo não descrevem a verificação atual. Consulte README.md para os comandos, a estrutura corrigida e os limites atuais.
+
 # PLANO DE IMPLEMENTAÇÃO — Reversa Gov
 
 **Produto:** Reversa Gov (módulo IRRF Municipal)  

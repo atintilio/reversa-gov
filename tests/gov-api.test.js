@@ -2,9 +2,9 @@
 // Usa o padrão de testes existente: createDb, freshRequire, call.
 // Requer que a rota 'gov' esteja registrada em api/v1/[...route].js.
 
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { createDb, freshRequire, call } from './helpers.js';
+const { describe, it, after, afterEach } = require('node:test');
+const assert = require('node:assert/strict');
+const { createDb, freshRequire, call, closeDatabases, cleanup } = require('./helpers.js');
 
 async function setup() {
   const { db, sql } = await createDb();
@@ -22,9 +22,10 @@ async function seedContexto(sql) {
   return { orgId: org.id, userId: user.id };
 }
 
-// Cookie de sessão simulado para testes (o contexto de authz será resolvido pelo banco)
-function cookiePara(userId) {
-  return `rv_session=test_${userId}`;
+// Sessão criada pela autenticação real do Reversa na base descartável de teste.
+async function cookiePara(userId) {
+  const cookie = await freshRequire('lib/auth').createSession(userId);
+  return cookie.split(';')[0];
 }
 
 describe('Reversa Gov — API', () => {
@@ -36,7 +37,7 @@ describe('Reversa Gov — API', () => {
       method: 'POST',
       url: '/api/v1/gov/municipios',
       body: { ibgeCode: '3550308', name: 'São Paulo', state: 'SP', cnpjRoot: '12345678' },
-      cookie: cookiePara(userId),
+      cookie: await cookiePara(userId),
     });
 
     assert.strictEqual(res.statusCode, 201);
@@ -56,7 +57,7 @@ describe('Reversa Gov — API', () => {
     const res = await call(handler, {
       method: 'GET',
       url: '/api/v1/gov/municipios',
-      cookie: cookiePara(userId),
+      cookie: await cookiePara(userId),
     });
 
     assert.strictEqual(res.statusCode, 200);
@@ -75,7 +76,7 @@ describe('Reversa Gov — API', () => {
     const res = await call(handler, {
       method: 'GET',
       url: '/api/v1/gov/municipios?uf=MG',
-      cookie: cookiePara(userId),
+      cookie: await cookiePara(userId),
     });
 
     assert.strictEqual(res.statusCode, 200);
@@ -93,3 +94,6 @@ describe('Reversa Gov — API', () => {
     assert.strictEqual(res.statusCode, 401);
   });
 });
+
+afterEach(closeDatabases);
+after(cleanup);
